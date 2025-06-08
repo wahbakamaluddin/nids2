@@ -65,8 +65,6 @@ def feature_extractor(flow_key, current_time):
     flow['fwd_packet_length_std'] = np.std(flow['fwd_packet_lengths']) if len(flow['fwd_packet_lengths']) > 1 else 0 
     # Update bwd_packet_length_std
     flow['bwd_packet_length_std'] = np.std(flow['bwd_packet_lengths']) if len(flow['bwd_packet_lengths']) > 1 else 0 
-    # Update flow_iats (inter arrival time)
-    flow['flow_iats'].append(current_time - flow['last_packet_time']) if flow['last_packet_time'] else 0
     # Update flow_iat_min
     flow['flow_iat_min'] = min(flow['flow_iats']) if len(flow['flow_iats']) > 1 else 0
     # Update flow_iat_std
@@ -125,10 +123,12 @@ def packet_parser(packet):
     # Calculate packet_length_total
     flow['packet_length_total'] += packet_length
 
+    # Update flow_iats
+    if flow['last_packet_time'] is not None:
+        flow['flow_iats'].append(current_time - flow['last_packet_time'])
     # Update last_packet_time
     flow['last_packet_time'] = current_time
 
-    # feature_extractor(packet, flow)
     # Update start_time
     if flow['start_time'] is None:
         flow['start_time'] = current_time
@@ -142,6 +142,7 @@ def packet_parser(packet):
         if flow['last_fwd_packet_time'] is not None:
             flow['fwd_iats'].append(current_time - flow['last_fwd_packet_time'])
         flow['last_fwd_packet_time'] = current_time
+
     # Update bwd_packet_lengths
     else:
         flow['bwd_packet_lengths'].append(packet_length)
