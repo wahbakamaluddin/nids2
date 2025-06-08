@@ -1,3 +1,5 @@
+import numpy as np
+
 from scapy.all import *
 from collections import defaultdict, deque
 
@@ -32,14 +34,22 @@ flow_stats = defaultdict(lambda: {
 
 total_packet_processed = 0
 
-# def feature_extractor(packet, flow):
-#     flow['fwd_packet_length_std'] = 
-#     flow['bwd_packet_length_std'] = 
-#     flow['fwd_packet_length_total'] = 
-#     flow['flow_iat_min'] = 
-#     flow['flow_iat_std'] = 
-#     flow['flow_iat_total'] = 
-#     flow['flow_byte/s'] = 
+def feature_extractor(flow_key, current_time):
+    flow = flow_stats[flow_key]
+
+    # Update flow_iats (inter arrival time)
+    if flow['last_packet_time'] is not None:
+        flow['flow_iats'].append(current_time - flow['last_packet_time'])
+    flow['fwd_packet_length_std'] = np.std(flow['fwd_packet_lengths']) if len(flow['fwd_packet_lengths']) > 1 else 0 
+    flow['bwd_packet_length_std'] = np.std(flow['bwd_packet_lengths']) if len(flow['bwd_packet_lengths']) > 1 else 0 
+    flow['flow_iat_min'] = np.min(flow['flow_iats']) if len(flow['flow_iats']) > 1 else 0
+    flow['flow_iat_std'] = np.std(flow['flow_iats']) if len(flow['flow_iats']) > 1 else 0
+    flow['flow_iat_total'] = np.sum(flow['flow_iats']) if len(flow['flow_iats']) > 1 else 0
+    duration = np.sum(flow['flow_iats']) if len(flow['flow_iats']) > 1 else 0
+    if flow['packet_length_total'] and duration > 0:
+        flow['flow_byte/s'] = flow['packet_length_total'] / duration
+
+    print(flow_stats, end='\t')
 
 def packet_parser(packet):
     if IP not in packet:
@@ -83,7 +93,15 @@ def packet_parser(packet):
 
     # Select flow on flow_states based on flow_key
     flow = flow_stats[flow_key]
+    # Calculate packet_length_total
+    flow['packet_length_total'] += packet_length
 
+    # Update last_packet_time
+    flow['last_packet_time'] = current_time
+
+    feature_extractor(flow_key, current_time)
+
+    # feature_extractor(packet, flow)
     # Update start_time
     if flow['start_time'] is None:
         flow['start_time'] = current_time
@@ -97,18 +115,8 @@ def packet_parser(packet):
     else:
         flow['bwd_packet_lengths'].append(packet_length)
 
-    # Update flow_iats (inter arrival time)
-    if flow['last_packet_time'] is not None:
-        flow['flow_iats'].append(current_time - flow['last_packet_time'])
+    # Upd
 
-    # Update packet_length_total
-    flow['packet_length_total'] += packet_length
-
-    # Update last_packet_time
-    flow['last_packet_time'] = current_time
-
-    print(flow_stats)
-    # feature_extractor(packet, flow)
 def packet_capture():
     try:
         sniff(iface="en0", prn=packet_parser)
